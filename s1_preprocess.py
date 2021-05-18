@@ -8,6 +8,7 @@ import multiprocessing
 from collections import defaultdict
 from functools import partial
 import codecs
+from dask.diagnostics import ProgressBar
 
 
 def step_1():
@@ -262,17 +263,17 @@ if '__main__' == __name__:
 #     step_3()
 #     step_4()
     # step_5()
-    print('step 6')
-    step_6() # citações dos artigos
-    print('step 7')
-    step_7() # união dos arquivos de citações dos artigos
-    print('step 8')
-    step_8() # autores dos artigos
-    print('step 9')
-    step_9() # união das colaborações dos autores
-    print('step 10')
+#     print('step 6')
+#     step_6() # citações dos artigos
+#     print('step 7')
+#     step_7() # união dos arquivos de citações dos artigos
+#     print('step 8')
+#     step_8() # autores dos artigos
+#     print('step 9')
+#     step_9() # união das colaborações dos autores
+#     print('step 10')
     step_10()
-
+    
 
 # 249 990 849 authors
 # 249 265 454 papers

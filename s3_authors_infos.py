@@ -17,7 +17,8 @@ class AuthorInfos(object):
     def to_dict(self):
         return {'birth_year': self.birth_year, 'citation_count': self.citation_count}
 
-def get_authors_infos(row, valid_authors, author_infos, pair_authors, max_year):
+
+def get_authors_single_infos(row, valid_authors, author_infos, pair_authors, max_year):
     year = row['year']
     
     if not year or type(year) != type(1.0) or year < 1950:
@@ -37,17 +38,38 @@ def get_authors_infos(row, valid_authors, author_infos, pair_authors, max_year):
         authors_id = set([authors_id])
     
     
-#     for a in authors_id:
-#         if a in valid_authors:
-#             if a in author_infos:
-#                 current = author_infos[a]
-#                 current.birth_year = min(current.birth_year, year)
-#                 current.citation_count.append(total_cits)
-#                 author_infos[a] = current
-#             else:
-#                 foo = AuthorInfos(year, [total_cits])
-#                 author_infos[a] = foo
+    for a in authors_id:
+        if a in valid_authors:
+            if a in author_infos:
+                current = author_infos[a]
+                current.birth_year = min(current.birth_year, year)
+                current.citation_count.append(total_cits)
+                author_infos[a] = current
+            else:
+                foo = AuthorInfos(year, [total_cits])
+                author_infos[a] = foo
+  
 
+    
+def get_authors_infos(row, valid_authors, author_infos, pair_authors, max_year):
+    year = row['year']
+    
+    if not year or type(year) != type(1.0) or year < 1950:
+        return
+    
+    if year > max_year:
+        return
+        
+    total_cits = row['total_cits']
+    if np.isnan(total_cits):
+        total_cits = 0
+    authors_id = row['authors']
+    if type(authors_id) == type(' '):
+        authors_id = set(authors_id.split(','))
+        authors_id = sorted([int(a) for a in authors_id])
+    else:
+        authors_id = set([authors_id])
+        
     for a1, a2 in itertools.combinations(authors_id, 2):
         if a1 in valid_authors:
             if a1 in pair_authors:
@@ -68,7 +90,7 @@ def get_authors_infos(row, valid_authors, author_infos, pair_authors, max_year):
                 pair_authors[a2] = {a1: [total_cits]}
 
 
-def work(valid, max_year, input_file):
+def work(valid, max_year, get_authors_infos, input_file):
     fidx = int(input_file.split('_')[-1])
     authors_infos = dict()
     pair_authors = dict()
@@ -86,8 +108,10 @@ def work(valid, max_year, input_file):
     for k,v in authors_infos.items():
         temp_ainfos[k] = v.to_dict()
     
-    with open('data/PairAuthors250_split/pair_%d_authors_valid_full_%05d' % (max_year, fidx), 'w') as outfile:
-        json.dump(pair_authors, outfile)
+#     with open('data/PairAuthors250_split/pair_%d_authors_valid_full_%05d' % (max_year, fidx), 'w') as outfile:
+#         json.dump(pair_authors, outfile)
+    with open('data/AuthorsInfosByYear/authors_infos_year_%d_valid_full_%05d' % (max_year, fidx), 'w') as outfile:
+        json.dump(temp_ainfos, outfile)
 
 
 def step_1():
@@ -104,10 +128,10 @@ def step_1():
     print('total of files', len(files_input))
     
     from tqdm.contrib.concurrent import process_map
-    for max_year in range(1960, 2021, 10):
+    for max_year in range(1970, 2021, 10):
         print(max_year)
-        process_map(partial(work, valid_list, max_year), files_input, max_workers=14)
-
+        process_map(partial(work, valid_list, max_year, get_authors_single_infos), files_input, max_workers=14)
+        
 
 def step_3():
     for max_year in range(1960, 2021, 10):
@@ -138,8 +162,9 @@ def _step_5(input_file):
     
     authors = {}
     current_reference = chunk.iloc[0,0]
-    idx = int(input_file.split('_')[-1])
-    output = open('data/PairAuthors2csv_split/pair_processed_%50d' % idx, 'w')
+    #idx = int(input_file.split('_')[-1])
+    #output = open('data/PairAuthors2csv_split/pair_processed_%50d' % idx, 'w')
+    output = open(input_file[:-4] + 'processed_pairs.csv', 'w')
     for idx,row in chunk.iterrows():
         if type(row['cits']) != type(''):
             print(input_file)
@@ -166,9 +191,11 @@ def _step_5(input_file):
 
 
 def step_5():
-    files = glob.glob('data/PairAuthors2csv_split/pair_sorted_*')
+    files = glob.glob('data/pair_*_byAuthorID.csv')[:4]
+    print(files)
+    # files = glob.glob('data/PairAuthors2csv_split/pair_sorted_*')
     N = len(files)
-
+     
     from tqdm.contrib.concurrent import process_map
     process_map(_step_5, files, total=N, max_workers=14)
 
@@ -208,46 +235,8 @@ def step_6():
     
     
 if __name__ == '__main__':
-#     step_1()
-    step_3()
+    step_1()
+#     step_3()
 #     step_4()
-#      step_5()
+#     step_5()
 #     step_6()
-    
-#     total = len(mapped)
-#     i = 2
-# #     union_author_infos = mapped[0][0]
-#     union_pair_authors = mapped[0][1]
-#     for a, b in mapped[1:]:
-#         print("%d of %d" % (i, total))
-#         i += 1
-# #         union_dict_infos(union_author_infos, a)
-#         union_dict_pairs(union_pair_authors, b)
-    
-#     with open('data/pair_authors_processed_part1.txt', 'w') as outfile:
-#         json.dump(union_pair_authors, outfile)
-
-
-
-#     pool = multiprocessing.Pool(16)
-#     mapped = pool.map(partial(work, valid_list), files_input[40:])
-#     pool.close()
-    
-#     total = len(mapped)
-#     i = 2
-#     union_pair_authors = mapped[0][1]
-#     for a, b in mapped[1:]:
-#         print("%d of %d" % (i, total))
-#         i += 1
-#         union_dict_pairs(union_pair_authors, b)
-    
-#     with open('data/pair_authors_processed_part2.txt', 'w') as outfile:
-#         json.dump(union_pair_authors, outfile)
-
-
-
-#     p1 = json.load(open('data/pair_authors_processed_part1.txt'))
-#     p2 = json.load(open('data/pair_authors_processed_part2.txt'))
-#     union_dict_pairs(p1, p2)
-#     with open('data/pair_authors_processed.txt', 'w') as outfile:
-#         json.dump(p1, outfile)
