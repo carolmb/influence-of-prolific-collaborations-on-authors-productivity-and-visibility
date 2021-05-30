@@ -2,6 +2,7 @@ import dask, glob, tqdm, json
 import numpy as np
 import pandas as pd
 import itertools
+import itertools as it
 import multiprocessing
 import dask.dataframe as dd
 from dask.dataframe import from_pandas, read_json
@@ -128,11 +129,46 @@ def step_1():
     print('total of files', len(files_input))
     
     from tqdm.contrib.concurrent import process_map
-    for max_year in range(1970, 2021, 10):
+    for max_year in range(1960, 2021, 10):
         print(max_year)
         process_map(partial(work, valid_list, max_year, get_authors_single_infos), files_input, max_workers=14)
-        
+        break
 
+def step_2():
+    for max_year in range(1960, 2021, 10):
+        print(max_year)
+        list_of_files = glob.glob('data/AuthorsInfosByYear/authors_infos_year_%d_valid_full_*' % max_year)
+        output_write = open('data/authors_infos_to_sort_step2_%d' % max_year,'w')
+
+        for filename in tqdm.tqdm(list_of_files):
+            json_to_pd = json.load(open(filename))
+            for k,v in json_to_pd.items():
+                output_write.write("%s\t%d\t%s\n" % (k, v['birth_year'], v['citation_count']))
+        output_write.close()
+
+        
+def step_2_5():
+    
+    def cits_to_merge(row):
+        out = ''.join(row)
+        out = out.replace('][', ', ')
+        return out
+    
+    for max_year in range(1960, 2021, 10):
+        to_merge = dd.read_csv('data/authors_infos_sorted_step_2_%d' % max_year, header=None, sep='\t', names=['authors_id', 'birth', 'citations'])
+        
+        collect_concat = dd.Aggregation(name='collect_concat',
+            chunk=lambda s1: s1.apply(list),
+            agg=lambda   s2: s2.apply(lambda chunks: list(it.chain.from_iterable(chunks))),
+            finalize=lambda s3: s3.apply(lambda xx: ''.join(xx).replace('][', ', '))
+        )
+        output = to_merge.groupby('authors_id').agg({'birth': ['min'], 'citations': [collect_concat]})
+        
+        from dask.diagnostics import ProgressBar
+        with ProgressBar():
+            output.to_csv('data/authors_infos_full_final_%d' % max_year, header=None, sep='\t', single_file=True)       
+        
+        
 def step_3():
     for max_year in range(1960, 2021, 10):
         print(max_year)
@@ -235,7 +271,9 @@ def step_6():
     
     
 if __name__ == '__main__':
-    step_1()
+#     step_1()
+#     step_2()
+    step_2_5()
 #     step_3()
 #     step_4()
 #     step_5()
