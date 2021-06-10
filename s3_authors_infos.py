@@ -198,10 +198,10 @@ def _step_5(input_file):
     
     authors = {}
     current_reference = chunk.iloc[0,0]
-    #idx = int(input_file.split('_')[-1])
-    #output = open('data/PairAuthors2csv_split/pair_processed_%50d' % idx, 'w')
-    output = open(input_file[:-4] + 'processed_pairs.csv', 'w')
-    for idx,row in chunk.iterrows():
+    idx = int(input_file.split('_')[-1])
+    output = open(input_file.replace('part','merged_part'), 'w')
+#     output = open(input_file[:-4] + 'processed_pairs.csv', 'w')
+    for idx,row in chunk.iterrows(): # total=len(chunk):
         if type(row['cits']) != type(''):
             print(input_file)
             print(row)
@@ -227,20 +227,24 @@ def _step_5(input_file):
 
 
 def step_5():
-    files = glob.glob('data/pair_*_byAuthorID.csv')[:4]
-    print(files)
-    # files = glob.glob('data/PairAuthors2csv_split/pair_sorted_*')
-    N = len(files)
-     
     from tqdm.contrib.concurrent import process_map
-    process_map(_step_5, files, total=N, max_workers=14)
+    
+    for max_year in [2000, 2010, 2020]:
+#         files = glob.glob('data/pair_csv_%d_byAuthorID.csv' % max_year)
+#         _step_5(files[0])
+
+        files = glob.glob('data/PairAuthors2csv_split/pair_csv_year_%d_part_*' % max_year)
+        print(files)
+        N = len(files)
+        
+        process_map(_step_5, files, total=N, max_workers=14)
 
 
 def join_dicts(a, b):
     A = json.loads(a)
     B = json.loads(b)
     for k,v in B.items():
-        if k in a:
+        if k in A:
             A[k] += v
         else:
             A[k] = v
@@ -249,32 +253,33 @@ def join_dicts(a, b):
     
     
 def step_6():
-    files = glob.glob('data/PairAuthors2csv_split/pair_processed_*')
-    N = len(files)
-    
-    to_concat = []
-    prev = pd.read_csv(files[0], header=None, sep='\t')
-    for i in tqdm.tqdm(range(1, N), total=N):
-        current = pd.read_csv(files[i], header=None, sep='\t')
-        
-        if prev.iloc[-1,0] == current.iloc[0,0]:
-            current.iloc[0, 1] = join_dicts(current.iloc[0, 1], prev.iloc[-1, 1])
-            
-            prev = prev[:-1]
-        
-        prev.to_csv('data/PairAuthors2csv_split/pair_processed_join_%50d' % (i-1), header=None, sep='\t')
-        del prev
-        prev = current
-    
-    prev.to_csv('data/PairAuthors2csv_split/pair_processed_join_%50d' % (N-1), header=None, sep='\t')
+    for max_year in [2020]:
+        files = glob.glob('data/PairAuthors2csv_split/pair_csv_year_%d_merged_part*' % max_year)
+        N = len(files)
+
+        to_concat = []
+        prev = pd.read_csv(files[0], header=None, sep='\t')
+        for i in tqdm.tqdm(range(1, N), total=N):
+            current = pd.read_csv(files[i], header=None, sep='\t')
+
+            if prev.iloc[-1,0] == current.iloc[0,0]:
+                current.iloc[0, 1] = join_dicts(current.iloc[0, 1], prev.iloc[-1, 1])
+
+                prev = prev[:-1]
+
+            prev.to_csv('data/PairAuthors2csv_split/pair_csv_year_%d_%50d' % (max_year, i-1), header=None, sep='\t')
+            del prev
+            prev = current
+
+        prev.to_csv('data/PairAuthors2csv_split/pair_csv_year_%d_%50d' % (max_year, N-1), header=None, sep='\t')
     
     
     
 if __name__ == '__main__':
 #     step_1()
 #     step_2()
-    step_2_5()
+#     step_2_5()
 #     step_3()
 #     step_4()
 #     step_5()
-#     step_6()
+    step_6()

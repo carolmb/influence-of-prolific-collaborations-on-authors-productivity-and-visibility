@@ -84,6 +84,7 @@ def _step_1(data):
                 max_w = w
                 max_p = len(colab_infos)/papers
                 clist = colab_infos
+                
     #             weights.append(w)
             s += w
 
@@ -92,10 +93,10 @@ def _step_1(data):
         P.append(papers)
         WS.append(max_w)
         WP.append(max_p)
-        CL.append(clist)
+        CL.append(clist) # colab list
         Y.append(b)
         FOS.append(row['fos'])
-        CH.append(c)
+        CH.append(c) # complete list
     #     row['max_ws'] = max_w
     #     row['max_colabs'] = max_p
     #     row['colab_cit_list'] = clist
