@@ -38,6 +38,8 @@ def get_authors_single_infos(row, valid_authors, author_infos, pair_authors, max
     else:
         authors_id = set([authors_id])
     
+    if len(authors_id) > 10:
+        return
     
     for a in authors_id:
         if a in valid_authors:
@@ -70,7 +72,10 @@ def get_authors_infos(row, valid_authors, author_infos, pair_authors, max_year):
         authors_id = sorted([int(a) for a in authors_id])
     else:
         authors_id = set([authors_id])
-        
+    
+    if len(authors_id) > 10:
+        return
+    
     for a1, a2 in itertools.combinations(authors_id, 2):
         if a1 in valid_authors:
             if a1 in pair_authors:
@@ -105,14 +110,15 @@ def work(valid, max_year, get_authors_infos, input_file):
     else:
         print('chunk is empty', input_file)
     
+    '''
     temp_ainfos = dict()
     for k,v in authors_infos.items():
         temp_ainfos[k] = v.to_dict()
-    
-#     with open('data/PairAuthors250_split/pair_%d_authors_valid_full_%05d' % (max_year, fidx), 'w') as outfile:
-#         json.dump(pair_authors, outfile)
-    with open('data/AuthorsInfosByYear/authors_infos_year_%d_valid_full_%05d' % (max_year, fidx), 'w') as outfile:
-        json.dump(temp_ainfos, outfile)
+    '''
+    with open('data/PairAuthors250_split/pair_%d_authors_valid_full_10a_%05d' % (max_year, fidx), 'w') as outfile:
+        json.dump(pair_authors, outfile)
+    # with open('data/AuthorsInfosByYear/authors_infos_year_%d_valid_full_10a_%05d' % (max_year, fidx), 'w') as outfile:
+    #     json.dump(temp_ainfos, outfile)
 
 
 def step_1():
@@ -131,19 +137,24 @@ def step_1():
     from tqdm.contrib.concurrent import process_map
     for max_year in range(1960, 2021, 10):
         print(max_year)
-        process_map(partial(work, valid_list, max_year, get_authors_single_infos), files_input, max_workers=14)
-        break
+        process_map(partial(work, valid_list, max_year, get_authors_infos), files_input, max_workers=14)
+        
 
 def step_2():
     for max_year in range(1960, 2021, 10):
         print(max_year)
-        list_of_files = glob.glob('data/AuthorsInfosByYear/authors_infos_year_%d_valid_full_*' % max_year)
-        output_write = open('data/authors_infos_to_sort_step2_%d' % max_year,'w')
+        list_of_files = glob.glob('data/AuthorsInfosByYear/authors_infos_year_%d_valid_full_10a*' % max_year)
+        output_write = open('data/authors_infos_to_sort_10a_step2_%d' % max_year,'w')
 
         for filename in tqdm.tqdm(list_of_files):
             json_to_pd = json.load(open(filename))
             for k,v in json_to_pd.items():
-                output_write.write("%s\t%d\t%s\n" % (k, v['birth_year'], v['citation_count']))
+                if 'birth_year' not in v:
+                    print(k, v)
+                    print('error')
+                    output_write.write("%s\t%d\t%s\n" % (k, v['birdh_year'], v['citation_count']))
+                else:
+                    output_write.write("%s\t%d\t%s\n" % (k, v['birth_year'], v['citation_count']))
         output_write.close()
 
         
@@ -155,7 +166,7 @@ def step_2_5():
         return out
     
     for max_year in range(1960, 2021, 10):
-        to_merge = dd.read_csv('data/authors_infos_sorted_step_2_%d' % max_year, header=None, sep='\t', names=['authors_id', 'birth', 'citations'])
+        to_merge = dd.read_csv('data/authors_infos_sorted_10a_step_2_%d' % max_year, header=None, sep='\t', names=['authors_id', 'birth', 'citations'])
         
         collect_concat = dd.Aggregation(name='collect_concat',
             chunk=lambda s1: s1.apply(list),
@@ -166,14 +177,15 @@ def step_2_5():
         
         from dask.diagnostics import ProgressBar
         with ProgressBar():
-            output.to_csv('data/authors_infos_full_final_%d' % max_year, header=None, sep='\t', single_file=True)       
+            output.to_csv('data/authors_infos_full_10a_final_%d' % max_year, header=None, sep='\t', single_file=True)       
         
         
 def step_3():
     for max_year in range(1960, 2021, 10):
         print(max_year)
     
-        files = sorted(glob.glob('data/PairAuthors250_split/pair_%d_authors_valid_full_*' % max_year))
+        files = sorted(glob.glob('data/PairAuthors250_split/pair_%d_authors_valid_full_10a_*' % max_year))
+        print(files)
         for i, file in tqdm.tqdm(enumerate(files), total=len(files)):
             t = []
             temp_json = json.load(open(file))
@@ -181,7 +193,7 @@ def step_3():
                 for a2, cits in hist.items():
                     t.append((a1, a2, [int(c) for c in cits]))
             p = pd.DataFrame(t, columns=['a1', 'a2', 'cits'])
-            p.to_csv('data/PairAuthors2csv_split/pair_%d_csv%05d' % (max_year,i), header=None, index=None, sep='\t')
+            p.to_csv('data/PairAuthors2csv_split/pair_%d_10a_csv%05d' % (max_year,i), header=None, index=None, sep='\t')
             del t
             del temp_json
     
@@ -198,9 +210,10 @@ def _step_5(input_file):
     
     authors = {}
     current_reference = chunk.iloc[0,0]
-    idx = int(input_file.split('_')[-1])
-    output = open(input_file.replace('part','merged_part'), 'w')
-#     output = open(input_file[:-4] + 'processed_pairs.csv', 'w')
+    if 'part' in input_file:
+        output = open(input_file.replace('part','merged_part'), 'w')
+    else:
+        output = open(input_file.replace('_byAuthorID', 'merged_processed'), 'w')
     for idx,row in chunk.iterrows(): # total=len(chunk):
         if type(row['cits']) != type(''):
             print(input_file)
@@ -229,11 +242,14 @@ def _step_5(input_file):
 def step_5():
     from tqdm.contrib.concurrent import process_map
     
-    for max_year in [2000, 2010, 2020]:
-#         files = glob.glob('data/pair_csv_%d_byAuthorID.csv' % max_year)
+#     for max_year in [1960, 1970, 1980]:
+#         files = glob.glob('data/pair_csv_10a_%d_byAuthorID.csv' % max_year)
 #         _step_5(files[0])
-
-        files = glob.glob('data/PairAuthors2csv_split/pair_csv_year_%d_part_*' % max_year)
+    
+    
+    for max_year in [1990, 2000, 2010, 2020]:
+    
+        files = glob.glob('data/PairAuthors2csv_split/pair_csv_year_10a_%d_part_*' % max_year)
         print(files)
         N = len(files)
         
@@ -254,7 +270,8 @@ def join_dicts(a, b):
     
 def step_6():
     for max_year in [2020]:
-        files = glob.glob('data/PairAuthors2csv_split/pair_csv_year_%d_merged_part*' % max_year)
+        files = glob.glob('data/PairAuthors2csv_split/pair_csv_year_10a_%d_merged_part*' % max_year)
+        print(files)
         N = len(files)
 
         to_concat = []
@@ -267,19 +284,19 @@ def step_6():
 
                 prev = prev[:-1]
 
-            prev.to_csv('data/PairAuthors2csv_split/pair_csv_year_%d_%50d' % (max_year, i-1), header=None, sep='\t')
+            prev.to_csv('data/PairAuthors2csv_split/pair_csv_year_10a_%d_%05d' % (max_year, i-1), header=None, sep='\t')
             del prev
             prev = current
 
-        prev.to_csv('data/PairAuthors2csv_split/pair_csv_year_%d_%50d' % (max_year, N-1), header=None, sep='\t')
+        prev.to_csv('data/PairAuthors2csv_split/pair_csv_year_10a_%d_%05d' % (max_year, N-1), header=None, sep='\t')
     
     
     
 if __name__ == '__main__':
 #     step_1()
 #     step_2()
-#     step_2_5()
+#    step_2_5()
 #     step_3()
 #     step_4()
-#     step_5()
+    step_5()
     step_6()

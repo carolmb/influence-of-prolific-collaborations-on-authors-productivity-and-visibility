@@ -131,8 +131,6 @@ def step_4():
         papers_authors = papers_authors.set_index('paper_id', sorted=True)
     print(papers_authors.head())
     
-    
-    
     papers_fos = dd.read_csv('data/PaperFOS_split/*', sep='\t', header=None, 
                             names=['paper_id', 'weights'], dtype={'paper_id':'int'})
     with ProgressBar():
@@ -178,6 +176,8 @@ def _step_5(maxyear, file):
                 continue
             
             authors = row['authors_id'].split(',')
+            if len(authors) > 10:
+                continue
             for a in authors:
                 if a in authors_hist:
                     for k,v in fields.items():
@@ -186,7 +186,7 @@ def _step_5(maxyear, file):
                     authors_hist[a] = defaultdict(lambda:0, fields)
 
         idx = file.split('_')[-1]
-        out = open('data/AuthorsFOS_split/authors_weights_year_%d_%s' % (maxyear,idx), 'w')
+        out = open('data/AuthorsFOS_split/authors_10a_weights_year_%d_%s' % (maxyear,idx), 'w')
         for k,v in authors_hist.items():
             out.write("%s\t%s\n" % (k, json.dumps(v)))
         out.close()
@@ -202,7 +202,7 @@ def step_5():
     for maxyear in range(1960, 2021, 10):
         from tqdm.contrib.concurrent import process_map
         process_map(partial(_step_5, maxyear), files, max_workers=16)
-    
+        break
     
 def step_6():
     # cat all files
@@ -222,7 +222,7 @@ def join_weights(rows):
 def _step_7(file):
     chunk = pd.read_csv(file, sep='\t', header=None, names=['author_id', 'weights']) # _complete_short_
 #     out = open('data/AuthorsFOS_split/authors_weights_complete_year_%s' % file.split('_')[-2], 'w')
-    out = open('data/AuthorsFOS_split/authors_weights_year_2020_weights_process_%s' % file.split('_')[-1], 'w')
+    out = open(file.replace('sorted', 'processed_sorted'), 'w')
     current = chunk.iloc[0,0]
     weights = defaultdict(lambda:0)
     for idx, row in chunk.iterrows():
@@ -241,15 +241,20 @@ def _step_7(file):
     
     
 def step_7():
-#     files = glob.glob('data/authors_weights_year_*_sorted.csv')
-#     for file in files:
-#         _step_7(file)
+#     files = glob.glob('data/AuthorsFOS_split/authors_10a_weights_full_*_sorted')
+    files = glob.glob('data/AuthorsFOS_split/authors_10a_weights_complete_sorted_1960')
+    print(files)
+    for file in files[:4]:
+        print(file)
+        _step_7(file)
     
 #     files = glob.glob('data/AuthorsFOS_split/authors_weights_final_*')
-    files = glob.glob('data/AuthorsFOS_split/authors_weightes_year_2020_split_sorted_*')
-    print(files[:3])
-    from tqdm.contrib.concurrent import process_map
-    process_map(_step_7, files, max_workers=10)
+    
+#     for y in [2010, 2020]:
+#         files = glob.glob('data/AuthorsFOS_split/authors_10a_weights_full_%d_sorted_*' % y)
+#         print(files[:3])
+#         from tqdm.contrib.concurrent import process_map
+#         process_map(_step_7, files, max_workers=10)
 
 
 
@@ -265,29 +270,30 @@ def merge_weights(w1, w2):
 
 
 def step_8():
-    files = sorted(glob.glob('data/AuthorsFOS_split/authors_weights_year_2020_weights_proces*'))
-    
-    N = len(files)
-    
-    to_join = []
-    last_chunk = pd.read_csv(files[0], sep='\t', header=None, names=['author_id', 'weights'])
-    
-    for i in tqdm.tqdm(range(1, N), total=N):
-        last_idx = last_chunk.iloc[-1,0]
-        current_chunk = pd.read_csv(files[i], sep='\t', header=None, names=['author_id', 'weights'])
-        current_idx = current_chunk.iloc[0,0]
-        if last_idx == current_idx:
-            last_row = last_chunk.iloc[-1,1]
-            current_chunk.iloc[0,1] = merge_weights(current_chunk.iloc[0,1], last_row)
-            last_chunk = last_chunk[:-1]
-        
-        last_chunk.to_csv('data/AuthorsFOS_split/authors_fos_weights_2020_final_%05d' % (i-1), sep='\t', header=None)
-        del last_chunk
-        last_chunk = current_chunk
-    last_chunk.to_csv('data/AuthorsFOS_split/authors_fos_weights_2020_final_%05d' % i, sep='\t', header=None, index=None)
+    for y in [2020]:
+        files = sorted(glob.glob('data/AuthorsFOS_split/authors_10a_weights_full_%d_processed_sorted*' % y))
 
+        N = len(files)
+        print(N, files[:3])
+        to_join = []
+        last_chunk = pd.read_csv(files[0], sep='\t', header=None, names=['author_id', 'weights'])
+
+        for i in tqdm.tqdm(range(1, N), total=N):
+            last_idx = last_chunk.iloc[-1,0]
+            current_chunk = pd.read_csv(files[i], sep='\t', header=None, names=['author_id', 'weights'])
+            current_idx = current_chunk.iloc[0,0]
+
+            if last_idx == current_idx:
+                last_row = last_chunk.iloc[-1,1]
+                current_chunk.iloc[0,1] = merge_weights(current_chunk.iloc[0,1], last_row)
+                last_chunk = last_chunk[:-1]
+                
+            last_chunk.to_csv('data/AuthorsFOS_split/authors_fos_weights_%d_final_%05d' % (y, i-1), sep='\t', header=None)
+            del last_chunk
+            last_chunk = current_chunk
+        last_chunk.to_csv('data/AuthorsFOS_split/authors_fos_weights_%d_final_%05d' % (y, i), sep='\t', header=None)
     
-    
+
 if __name__ == '__main__':
 #     step_3()
 #     step_4()
@@ -295,3 +301,4 @@ if __name__ == '__main__':
 #     step_5()
 #     step_7()
     step_8()
+0
